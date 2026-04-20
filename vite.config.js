@@ -12,7 +12,7 @@ export default defineConfig({
       },
     },
   },
-       build: {
-    outDir: 'build',   // ← add this line
+  build: {
+    outDir: 'dist',  // Render expects 'dist' not 'build'
   },
 })
