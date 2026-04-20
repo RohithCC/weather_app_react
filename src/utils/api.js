@@ -1,24 +1,81 @@
 // src/utils/api.js
-// ✅ ALL fetch calls use RELATIVE path /api/...
-// Vite proxy in vite.config.js forwards to http://203.201.62.116:8091
+// Dev:  Vite proxy  /api → http://203.201.62.116:8091
+// Prod: Express     /api → http://203.201.62.116:8091
 
+const BASE = '/api'
+
+// ── Safe fetch ────────────────────────────────────────────────────────────────
+async function safeFetch(url) {
+  console.log(`[API] GET ${url}`)
+  let res
+  try {
+    res = await fetch(url)
+  } catch (err) {
+    throw new Error(`Network error: ${err.message}`)
+  }
+  const text = await res.text()
+  console.log(`[API] ${res.status} — preview: ${text.slice(0, 120)}`)
+  if (text.trim().startsWith('<')) {
+    throw new Error(`Got HTML instead of JSON at ${url}`)
+  }
+  try {
+    return JSON.parse(text)
+  } catch {
+    throw new Error(`Invalid JSON from ${url}:\n${text.slice(0, 200)}`)
+  }
+}
+
+// ── Try multiple endpoint patterns, return first that works ──────────────────
+async function tryEndpoints(candidates) {
+  const errors = []
+  for (const url of candidates) {
+    try {
+      const json = await safeFetch(url)
+      if (Array.isArray(json)) {
+        console.log(`[API] ✅ Working endpoint: ${url}  (${json.length} records)`)
+        return json
+      }
+      console.warn(`[API] ⚠️ ${url} returned non-array:`, typeof json)
+    } catch (err) {
+      console.warn(`[API] ❌ ${url} →`, err.message)
+      errors.push(`${url}: ${err.message}`)
+    }
+  }
+  throw new Error(
+    `All endpoints failed. Check the API server is running.\n\n` +
+    errors.join('\n')
+  )
+}
+
+// ── Rainfall ──────────────────────────────────────────────────────────────────
 export async function fetchRainfall(date) {
-  const res = await fetch(`/api/rainfalldata/${date}`)
-  if (!res.ok) throw new Error(`Rainfall API error ${res.status}`)
-  const json = await res.json()
-  if (!Array.isArray(json)) throw new Error('Rainfall API: unexpected format')
-  return json
+  return tryEndpoints([
+    `${BASE}/rainfalldata/${date}`,
+    `${BASE}/rainfall/${date}`,
+    `${BASE}/RainfallData/${date}`,
+    `${BASE}/Rainfalldata/${date}`,
+    `${BASE}/rainfalldata?date=${date}`,
+    `${BASE}/rainfall?date=${date}`,
+    `${BASE}/ksndmc/rainfalldata/${date}`,
+    `${BASE}/api/rainfalldata/${date}`,
+  ])
 }
 
+// ── Weather ───────────────────────────────────────────────────────────────────
 export async function fetchWeather(date) {
-  const res = await fetch(`/api/weatherdata/${date}`)
-  if (!res.ok) throw new Error(`Weather API error ${res.status}`)
-  const json = await res.json()
-  if (!Array.isArray(json)) throw new Error('Weather API: unexpected format')
-  return json
+  return tryEndpoints([
+    `${BASE}/weatherdata/${date}`,
+    `${BASE}/weather/${date}`,
+    `${BASE}/WeatherData/${date}`,
+    `${BASE}/Weatherdata/${date}`,
+    `${BASE}/weatherdata?date=${date}`,
+    `${BASE}/weather?date=${date}`,
+    `${BASE}/ksndmc/weatherdata/${date}`,
+    `${BASE}/api/weatherdata/${date}`,
+  ])
 }
 
-// ── Approximate district centroids (Karnataka) ────────────────────────────────
+// ── District centroids (Karnataka) ───────────────────────────────────────────
 export const DISTRICT_COORDS = {
   'BENGALURU URBAN':   { lat: 12.9716, lng: 77.5946 },
   'BENGALURU RURAL':   { lat: 13.1700, lng: 77.5100 },
@@ -58,7 +115,7 @@ export function formatDate(d) {
   return d.toISOString().split('T')[0]
 }
 
-// ── Aggregate raw rainfall rows by District → Taluk → Hobli hierarchy ─────────
+// ── Rainfall hierarchy builder ────────────────────────────────────────────────
 export function buildRainfallHierarchy(rows) {
   const districts = {}
   rows.forEach(r => {
@@ -69,7 +126,8 @@ export function buildRainfallHierarchy(rows) {
     const date  = r.RECORDED_DATE || ''
 
     if (!dist) return
-    if (!districts[dist]) districts[dist] = { name: dist, rain: 0, count: 0, taluks: {} }
+    if (!districts[dist])
+      districts[dist] = { name: dist, rain: 0, count: 0, taluks: {} }
     districts[dist].rain  += rain
     districts[dist].count += 1
 
@@ -97,7 +155,7 @@ export function buildRainfallHierarchy(rows) {
   })).sort((a, b) => b.rain - a.rain)
 }
 
-// ── Aggregate raw weather rows by District → Taluk hierarchy ──────────────────
+// ── Weather hierarchy builder ─────────────────────────────────────────────────
 export function buildWeatherHierarchy(rows) {
   const districts = {}
   rows.forEach(r => {
@@ -141,7 +199,7 @@ export function buildWeatherHierarchy(rows) {
     if (r.MAX_TEMP) h.maxTemps.push(+r.MAX_TEMP)
   })
 
-  const avg = a => a.length ? a.reduce((s,v)=>s+v,0)/a.length : 0
+  const avg = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0
 
   return Object.values(districts).map(d => ({
     name: d.name, count: d.count,
@@ -157,10 +215,11 @@ export function buildWeatherHierarchy(rows) {
         name: h.name, count: h.count,
         avgMinTemp: avg(h.minTemps), avgMaxTemp: avg(h.maxTemps),
       })),
-    })).sort((a,b) => b.avgMaxTemp - a.avgMaxTemp),
-  })).sort((a,b) => b.avgMaxTemp - a.avgMaxTemp)
+    })).sort((a, b) => b.avgMaxTemp - a.avgMaxTemp),
+  })).sort((a, b) => b.avgMaxTemp - a.avgMaxTemp)
 }
 
+// ── Color helpers ─────────────────────────────────────────────────────────────
 export function rainColor(mm) {
   if (mm === 0) return '#1e3a4a'
   if (mm < 5)   return '#155e75'

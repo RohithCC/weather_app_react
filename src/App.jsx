@@ -376,7 +376,7 @@ export default function App() {
       </main>
 
       <footer className="max-w-7xl mx-auto px-4 py-6 border-t border-slate-800 mt-8 text-xs text-slate-600 flex justify-between flex-wrap gap-2">
-        <span>Karnataka Weather Analytics — KSNDMC Data</span>
+        <span></span>
         <span>API: 203.201.62.116:8091 · Date: {date}</span>
       </footer>
     </div>

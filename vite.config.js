@@ -10,6 +10,17 @@ export default defineConfig({
         changeOrigin: true,
         secure:       false,
         rewrite:      (path) => path.replace(/^\/api/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (_proxyReq, req) => {
+            console.log(`[PROXY] → ${req.url}`)
+          })
+          proxy.on('proxyRes', (proxyRes, req) => {
+            console.log(`[PROXY] ← ${proxyRes.statusCode} ${req.url}`)
+          })
+          proxy.on('error', (err) => {
+            console.error('[PROXY ERROR]', err.message)
+          })
+        },
       },
     },
   },
