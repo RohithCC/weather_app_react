@@ -1,28 +1,48 @@
-import express from 'express'
+import express    from 'express'
 import { createProxyMiddleware } from 'http-proxy-middleware'
-import path from 'path'
+import path       from 'path'
 import { fileURLToPath } from 'url'
+import { existsSync } from 'fs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname  = path.dirname(__filename)
+const PORT       = process.env.PORT || 3000
+const DIST       = path.join(__dirname, 'dist')
+const API_TARGET = 'http://203.201.62.116:8091'
 
-const app  = express()
-const PORT = process.env.PORT || 3000
+console.log('=== server.js STARTING ===')
+console.log('PORT:', PORT)
+console.log('dist folder exists:', existsSync(DIST))
+console.log('API target:', API_TARGET)
 
-// ── Proxy /api → real API ──────────────────────────────────────────
+const app = express()
+
+// 1️⃣ Proxy FIRST — before any static file middleware
 app.use('/api', createProxyMiddleware({
-  target:      'http://203.201.62.116:8091',
+  target:       API_TARGET,
   changeOrigin: true,
   secure:       false,
   pathRewrite:  { '^/api': '' },
+  on: {
+    proxyReq: (pReq, req) =>
+      console.log(`[PROXY] → ${API_TARGET}${pReq.path}`),
+    proxyRes: (pRes, req) =>
+      console.log(`[PROXY] ← ${pRes.statusCode} ${req.url}`),
+    error: (err, req, res) => {
+      console.error('[PROXY ERROR]', err.message)
+      res.status(502).json({ error: 'Proxy error', detail: err.message })
+    },
+  },
 }))
 
-// ── Serve React build ──────────────────────────────────────────────
-app.use(express.static(path.join(__dirname, 'dist')))
+// 2️⃣ Static files SECOND
+app.use(express.static(DIST))
 
-// ✅ Fix: Express 5 uses '{*path}' instead of '*'
-app.get('/{*path}', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'))
+// 3️⃣ SPA fallback LAST
+app.get('/{*path}', (_req, res) =>
+  res.sendFile(path.join(DIST, 'index.html'))
+)
+
+app.listen(PORT, () => {
+  console.log(`✅ Listening on port ${PORT}`)
 })
-
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
