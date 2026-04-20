@@ -3,9 +3,6 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-     build: {
-    outDir: 'build',   // ← add this line
-  },
   server: {
     proxy: {
       '/api': {
@@ -14,5 +11,8 @@ export default defineConfig({
         secure: false,
       },
     },
+  },
+       build: {
+    outDir: 'build',   // ← add this line
   },
 })
