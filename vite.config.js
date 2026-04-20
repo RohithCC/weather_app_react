@@ -6,13 +6,14 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://203.201.62.116:8091',
+        target:       'http://203.201.62.116:8091',
         changeOrigin: true,
-        secure: false,
+        secure:       false,
+        rewrite:      (path) => path.replace(/^\/api/, ''),
       },
     },
   },
   build: {
-    outDir: 'dist',  // Render expects 'dist' not 'build'
+    outDir: 'dist',
   },
 })

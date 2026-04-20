@@ -3,10 +3,11 @@
   "private": true,
   "version": "2.0.0",
   "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "preview": "vite preview",
-    "build": "vite build"
+    "scripts": {
+    "dev":     "vite",
+    "build":   "vite build",
+    "start":   "node server.js",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@react-google-maps/api": "^2.19.3",
